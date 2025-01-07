@@ -3,21 +3,24 @@ from cryptography.hazmat.backends import default_backend
 import socket
 import ssl
 from typing import Dict, Any
-from flask import Request
 
 class TLSAnalyzer:
     def __init__(self):
         self.context = ssl.create_default_context()
-    
-    def analyze_connection(self) -> Dict[str, Any]:
+        self.context.check_hostname = False
+        self.context.verify_mode = ssl.CERT_NONE
+
+    def analyze_host(self, host: str) -> Dict[str, Any]:
+        """
+        Analyze TLS configuration of a host
+        """
         try:
-            host = 'www.google.com'
             with socket.create_connection((host, 443)) as sock:
                 with self.context.wrap_socket(sock, server_hostname=host) as ssock:
                     cert = ssock.getpeercert(binary_form=True)
                     cipher = ssock.cipher()
                     version = ssock.version()
-                    
+
                     return {
                         'version': version,
                         'cipher_suite': {
@@ -28,24 +31,12 @@ class TLSAnalyzer:
                         'cert_info': self._parse_certificate(cert)
                     }
         except Exception as e:
-            print(f"Error: {str(e)}")
-            return {
-                'version': 'Unknown',
-                'cipher_suite': {
-                    'name': 'Unknown',
-                    'protocol': 'Unknown',
-                    'bits': 0
-                },
-                'cert_info': {
-                    'subject': 'Not available',
-                    'issuer': 'Not available',
-                    'not_valid_before': 'Not available',
-                    'not_valid_after': 'Not available',
-                    'serial_number': 'Not available'
-                }
-            }
-            
+            raise Exception(f"TLS analysis failed: {str(e)}")
+
     def _parse_certificate(self, cert_data: bytes) -> Dict[str, Any]:
+        """
+        Parse certificate data
+        """
         cert = x509.load_der_x509_certificate(cert_data, default_backend())
         return {
             'subject': str(cert.subject),
